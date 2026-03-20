@@ -4432,6 +4432,15 @@ def pshufhw(_, instr, dst, src, imm):
         out.append(src[shift + 64: shift + 16 + 64])
     return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
+def ptest(_, instr, dst, src):
+    e = []
+    e.append(m2_expr.ExprAssign(zf, m2_expr.ExprOp('FLAG_EQ', dst & src)))
+    e.append(m2_expr.ExprAssign(cf, m2_expr.ExprOp('FLAG_EQ', src & ~dst)))
+    e.append(m2_expr.ExprAssign(of, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(af, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(pf, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(nf, m2_expr.ExprInt(0, 1)))
+    return e, []
 
 def ps_rl_ll(ir, instr, dst, src, op, size):
     mask = {16: 0xF,
@@ -4918,7 +4927,21 @@ def _signed_to_unsigned_saturation(expr, dst_size):
         )
     )
 
+def phminposuw(ir, instr, dst, src):
+    if dst.size != 128 or src.size != 128:
+        raise RuntimeError("Unsupported size dst=%d src=%d" % (dst.size, src.size))
 
+    min_val = src[:16]
+    min_idx = m2_expr.ExprInt(0, 16)
+
+    for i in range(1, 8):
+        word = src[i * 16:(i + 1) * 16]
+        cond = m2_expr.expr_is_unsigned_lower(word, min_val)
+        min_val = m2_expr.ExprCond(cond, word, min_val)
+        min_idx = m2_expr.ExprCond(cond, m2_expr.ExprInt(i, 16), min_idx)
+
+    result = m2_expr.ExprCompose(min_val, min_idx, m2_expr.ExprInt(0, 96))
+    return [m2_expr.ExprAssign(dst, result)], []
 
 def packsswb(ir, instr, dst, src):
     out = []
@@ -5757,6 +5780,8 @@ mnemo_func = {'mov': mov,
               "sqrtss": sqrtss,
 
               "pmovmskb": pmovmskb,
+
+              "phminposuw": phminposuw,
 
               "packsswb": packsswb,
               "packssdw": packssdw,

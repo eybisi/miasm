@@ -4473,6 +4473,9 @@ addop("pminub", [bs8(0x0f), bs8(0xda), pref_66] +
 addop("pminuw", [bs8(0x0f), bs8(0x38), bs8(0x3a), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm))
 
+addop("phminposuw", [bs8(0x0f), bs8(0x38), bs8(0x41), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128))
+
 addop("pminud", [bs8(0x0f), bs8(0x38), bs8(0x3b), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm))
 
