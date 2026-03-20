@@ -4805,6 +4805,36 @@ def palignr(ir, instr, dst, src, imm):
 
     return [m2_expr.ExprAssign(dst, result)], []
 
+def psign(ir, instr, dst, src, lane_size):
+    if dst.size not in [64, 128] or src.size != dst.size:
+        raise RuntimeError("Unsupported size dst=%d src=%d" % (dst.size, src.size))
+
+    out = []
+    for i in range(0, dst.size, lane_size):
+        data = dst[i:i + lane_size]
+        control = src[i:i + lane_size]
+        neg_data = (data ^ data.mask) + m2_expr.ExprInt(1, data.size)
+        out.append(
+            m2_expr.ExprCond(
+                control.msb(),
+                neg_data,
+                m2_expr.ExprCond(
+                    control,
+                    data,
+                    m2_expr.ExprInt(0, data.size)
+                )
+            )
+        )
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def psignb(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 8)
+
+def psignw(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 16)
+
+def psignd(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 32)
 
 def _signed_to_signed_saturation(expr, dst_size):
     """Saturate the expr @expr for @dst_size bit
@@ -5646,6 +5676,10 @@ mnemo_func = {'mov': mov,
               "psrad": psrad,
 
               "palignr": palignr,
+
+              "psignb": psignb,
+              "psignw": psignw,
+              "psignd": psignd,
 
               "pmaxub": pmaxub,
               "pmaxuw": pmaxuw,

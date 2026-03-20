@@ -4345,6 +4345,19 @@ addop("palignr", [bs8(0x0f), bs8(0x73), bs8(0x0f), no_xmm_pref] +
 addop("palignr", [bs8(0x0f), bs8(0x3a), bs8(0x0f), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm_m128) + [u08], [xmm_reg, rm_arg_xmm_m128, u08])
 
+addop("psignb", [bs8(0x0f), bs8(0x38), bs8(0x08), no_xmm_pref] +
+      rmmod(mm_reg, rm_arg_mm_m64))
+addop("psignb", [bs8(0x0f), bs8(0x38), bs8(0x08), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128))
+addop("psignw", [bs8(0x0f), bs8(0x38), bs8(0x09), no_xmm_pref] +
+      rmmod(mm_reg, rm_arg_mm_m64))
+addop("psignw", [bs8(0x0f), bs8(0x38), bs8(0x09), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128))
+addop("psignd", [bs8(0x0f), bs8(0x38), bs8(0x0a), no_xmm_pref] +
+      rmmod(mm_reg, rm_arg_mm_m64))
+addop("psignd", [bs8(0x0f), bs8(0x38), bs8(0x0a), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128))
+
 addop("psrlq", [bs8(0x0f), bs8(0x73), no_xmm_pref] +
       rmmod(d2, rm_arg_mm) + [u08], [rm_arg_mm, u08])
 addop("psrlq", [bs8(0x0f), bs8(0x73), pref_66] +
