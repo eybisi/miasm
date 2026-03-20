@@ -3991,6 +3991,7 @@ pminsw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=True))
 pminub = vec_vertical_instr('min', 8, lambda x: _min_max(x, signed=False))
 pminuw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=False))
 pminud = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=False))
+pminsd = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=True))
 pmaxub = vec_vertical_instr('max', 8, lambda x: _min_max(x, signed=False))
 pmaxuw = vec_vertical_instr('max', 16, lambda x: _min_max(x, signed=False))
 pmaxud = vec_vertical_instr('max', 32, lambda x: _min_max(x, signed=False))
@@ -4442,6 +4443,27 @@ def ptest(_, instr, dst, src):
     e.append(m2_expr.ExprAssign(pf, m2_expr.ExprInt(0, 1)))
     e.append(m2_expr.ExprAssign(nf, m2_expr.ExprInt(0, 1)))
     return e, []
+
+def _clmul64_to_128(a64, b64):
+    assert a64.size == 64
+    assert b64.size == 64
+
+    a128 = a64.zeroExtend(128)
+    res = m2_expr.ExprInt(0, 128)
+
+    for i in range(64):
+        bit = b64[i:i + 1]
+        term = m2_expr.ExprCond(bit, a128 << m2_expr.ExprInt(i, 128), m2_expr.ExprInt(0, 128))
+        res = m2_expr.ExprOp('^', res, term)
+
+    return expr_simp(res)
+
+def pclmulqdq(_, instr, dst, src, imm8):
+    control = int(imm8)
+    a = dst[64:128] if (control & 0x01) else dst[:64]
+    b = src[64:128] if (control & 0x10) else src[:64]
+    res = _clmul64_to_128(a, b)
+    return [m2_expr.ExprAssign(dst, res)], []
 
 def ps_rl_ll(ir, instr, dst, src, op, size):
     mask = {16: 0xF,
@@ -5755,6 +5777,8 @@ mnemo_func = {'mov': mov,
               "pshuflw": pshuflw,
               "pshufhw": pshufhw,
               "ptest": ptest,
+              "ptest": ptest,
+              "pclmulqdq": pclmulqdq,
 
               "psrlw": psrlw,
               "psrld": psrld,
@@ -5782,6 +5806,7 @@ mnemo_func = {'mov': mov,
               "pminub": pminub,
               "pminuw": pminuw,
               "pminud": pminud,
+              "pminsd": pminsd,
 
               "pcmpeqb": pcmpeqb,
               "pcmpeqw": pcmpeqw,

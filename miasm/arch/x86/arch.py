@@ -4346,6 +4346,10 @@ addop("palignr", [bs8(0x0f), bs8(0x73), bs8(0x0f), no_xmm_pref] +
 addop("palignr", [bs8(0x0f), bs8(0x3a), bs8(0x0f), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm_m128) + [u08], [xmm_reg, rm_arg_xmm_m128, u08])
 
+addop("pclmulqdq", [bs8(0x0f), bs8(0x3a), bs8(0x44), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128) + [u08],
+      [xmm_reg, rm_arg_xmm_m128, u08])
+
 addop("psignb", [bs8(0x0f), bs8(0x38), bs8(0x08), no_xmm_pref] +
       rmmod(mm_reg, rm_arg_mm_m64))
 addop("psignb", [bs8(0x0f), bs8(0x38), bs8(0x08), pref_66] +
@@ -4483,6 +4487,8 @@ addop("phminposuw", [bs8(0x0f), bs8(0x38), bs8(0x41), pref_66] +
 addop("pminud", [bs8(0x0f), bs8(0x38), bs8(0x3b), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm))
 
+addop("pminsd", [bs8(0x0f), bs8(0x38), bs8(0x39), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm))
 
 addop("pcmpeqb", [bs8(0x0f), bs8(0x74), no_xmm_pref] +
       rmmod(mm_reg, rm_arg_mm))
