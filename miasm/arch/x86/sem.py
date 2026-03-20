@@ -3895,6 +3895,21 @@ pmulhw = vec_vertical_instr('*', 16, lambda x: _keep_mul_high(x, signed=True))
 pmulhd = vec_vertical_instr('*', 32, lambda x: _keep_mul_high(x, signed=True))
 pmulhq = vec_vertical_instr('*', 64, lambda x: _keep_mul_high(x, signed=True))
 
+def pmuldq(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+
+    e.append(m2_expr.ExprAssign(
+        dst[:64],
+        src[:32].signExtend(64) * dst[:32].signExtend(64)
+    ))
+    e.append(m2_expr.ExprAssign(
+        dst[64:],
+        src[64:96].signExtend(64) * dst[64:96].signExtend(64)
+    ))
+    return e, []
+
 def pmuludq(ir, instr, dst, src):
     e = []
     if dst.size == 64:
@@ -5563,6 +5578,7 @@ mnemo_func = {'mov': mov,
               "pmulhw": pmulhw,
               "pmulhd": pmulhd,
               "pmulhq": pmulhq,
+              "pmuldq": pmuldq,
               "pmuludq": pmuludq,
 
               # Mix
