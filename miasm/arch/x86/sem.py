@@ -5012,6 +5012,12 @@ def packuswb(ir, instr, dst, src):
             out.append(_signed_to_unsigned_saturation(source[start:start + 16], 8))
     return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
+def packusdw(ir, instr, dst, src):
+    out = []
+    for source in [dst, src]:
+        for start in range(0, dst.size, 32):
+            out.append(_signed_to_unsigned_saturation(source[start:start + 32], 16))
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
 def _saturation_sub_unsigned(expr):
     assert expr.is_op("+") and len(expr.args) == 2 and expr.args[-1].is_op("-")
@@ -5838,6 +5844,7 @@ mnemo_func = {'mov': mov,
               "packsswb": packsswb,
               "packssdw": packssdw,
               "packuswb": packuswb,
+              "packusdw": packusdw,
 
               "psubusb": psubusb,
               "psubusw": psubusw,
