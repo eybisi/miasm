@@ -3895,6 +3895,21 @@ pmulhw = vec_vertical_instr('*', 16, lambda x: _keep_mul_high(x, signed=True))
 pmulhd = vec_vertical_instr('*', 32, lambda x: _keep_mul_high(x, signed=True))
 pmulhq = vec_vertical_instr('*', 64, lambda x: _keep_mul_high(x, signed=True))
 
+def pmuldq(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+
+    e.append(m2_expr.ExprAssign(
+        dst[:64],
+        src[:32].signExtend(64) * dst[:32].signExtend(64)
+    ))
+    e.append(m2_expr.ExprAssign(
+        dst[64:],
+        src[64:96].signExtend(64) * dst[64:96].signExtend(64)
+    ))
+    return e, []
+
 def pmuludq(ir, instr, dst, src):
     e = []
     if dst.size == 64:
@@ -3976,9 +3991,11 @@ pminsw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=True))
 pminub = vec_vertical_instr('min', 8, lambda x: _min_max(x, signed=False))
 pminuw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=False))
 pminud = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=False))
+pminsd = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=True))
 pmaxub = vec_vertical_instr('max', 8, lambda x: _min_max(x, signed=False))
 pmaxuw = vec_vertical_instr('max', 16, lambda x: _min_max(x, signed=False))
 pmaxud = vec_vertical_instr('max', 32, lambda x: _min_max(x, signed=False))
+pmaxsd = vec_vertical_instr('max', 32, lambda x: _min_max(x, signed=True))
 pmaxsw = vec_vertical_instr('max', 16, lambda x: _min_max(x, signed=True))
 
 # Floating-point arithmetic
@@ -4417,6 +4434,36 @@ def pshufhw(_, instr, dst, src, imm):
         out.append(src[shift + 64: shift + 16 + 64])
     return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
+def ptest(_, instr, dst, src):
+    e = []
+    e.append(m2_expr.ExprAssign(zf, m2_expr.ExprOp('FLAG_EQ', dst & src)))
+    e.append(m2_expr.ExprAssign(cf, m2_expr.ExprOp('FLAG_EQ', src & ~dst)))
+    e.append(m2_expr.ExprAssign(of, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(af, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(pf, m2_expr.ExprInt(0, 1)))
+    e.append(m2_expr.ExprAssign(nf, m2_expr.ExprInt(0, 1)))
+    return e, []
+
+def _clmul64_to_128(a64, b64):
+    assert a64.size == 64
+    assert b64.size == 64
+
+    a128 = a64.zeroExtend(128)
+    res = m2_expr.ExprInt(0, 128)
+
+    for i in range(64):
+        bit = b64[i:i + 1]
+        term = m2_expr.ExprCond(bit, a128 << m2_expr.ExprInt(i, 128), m2_expr.ExprInt(0, 128))
+        res = m2_expr.ExprOp('^', res, term)
+
+    return expr_simp(res)
+
+def pclmulqdq(_, instr, dst, src, imm8):
+    control = int(imm8)
+    a = dst[64:128] if (control & 0x01) else dst[:64]
+    b = src[64:128] if (control & 0x10) else src[:64]
+    res = _clmul64_to_128(a, b)
+    return [m2_expr.ExprAssign(dst, res)], []
 
 def ps_rl_ll(ir, instr, dst, src, op, size):
     mask = {16: 0xF,
@@ -4594,7 +4641,6 @@ def punpckldq(ir, instr, dst, src):
 def punpcklqdq(ir, instr, dst, src):
     return punpck(ir, instr, dst, src, 64, 0)
 
-
 def pinsr(_, instr, dst, src, imm, size):
     e = []
 
@@ -4682,6 +4728,52 @@ def unpcklpd(_, instr, dst, src):
     e.append(m2_expr.ExprAssign(dst, src))
     return e, []
 
+def pmovsxwd(ir, instr, dst, src):
+    out = []
+    for i in range(4):
+        lane = src[16 * i:16 * (i + 1)]
+        out.append(lane.signExtend(32))
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def pmovsxwq(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+
+    out = []
+    for i in range(2):
+        w = src[16 * i:16 * (i + 1)]
+        out.append(w.signExtend(64))
+
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
+
+def pmovmskb(ir, instr, dst, src):
+    e = []
+    e.append(m2_expr.ExprAssign(dst, src.zeroExtend(dst.size)))
+    return e, []
+
+def pmovsxbd(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+    out = []
+    for i in range(4):
+        b = src[8 * i: 8 * (i + 1)]
+        out.append(b.signExtend(32))
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
+
+def pmovsxdq(_, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+    out = []
+    for i in range(2):
+        d = src[32 * i: 32 * (i + 1)]
+        out.append(d.signExtend(64))
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
 
 def movlpd(_, instr, dst, src):
     e = []
@@ -4805,6 +4897,36 @@ def palignr(ir, instr, dst, src, imm):
 
     return [m2_expr.ExprAssign(dst, result)], []
 
+def psign(ir, instr, dst, src, lane_size):
+    if dst.size not in [64, 128] or src.size != dst.size:
+        raise RuntimeError("Unsupported size dst=%d src=%d" % (dst.size, src.size))
+
+    out = []
+    for i in range(0, dst.size, lane_size):
+        data = dst[i:i + lane_size]
+        control = src[i:i + lane_size]
+        neg_data = (data ^ data.mask) + m2_expr.ExprInt(1, data.size)
+        out.append(
+            m2_expr.ExprCond(
+                control.msb(),
+                neg_data,
+                m2_expr.ExprCond(
+                    control,
+                    data,
+                    m2_expr.ExprInt(0, data.size)
+                )
+            )
+        )
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def psignb(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 8)
+
+def psignw(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 16)
+
+def psignd(ir, instr, dst, src):
+    return psign(ir, instr, dst, src, 32)
 
 def _signed_to_signed_saturation(expr, dst_size):
     """Saturate the expr @expr for @dst_size bit
@@ -4873,7 +4995,21 @@ def _signed_to_unsigned_saturation(expr, dst_size):
         )
     )
 
+def phminposuw(ir, instr, dst, src):
+    if dst.size != 128 or src.size != 128:
+        raise RuntimeError("Unsupported size dst=%d src=%d" % (dst.size, src.size))
 
+    min_val = src[:16]
+    min_idx = m2_expr.ExprInt(0, 16)
+
+    for i in range(1, 8):
+        word = src[i * 16:(i + 1) * 16]
+        cond = m2_expr.expr_is_unsigned_lower(word, min_val)
+        min_val = m2_expr.ExprCond(cond, word, min_val)
+        min_idx = m2_expr.ExprCond(cond, m2_expr.ExprInt(i, 16), min_idx)
+
+    result = m2_expr.ExprCompose(min_val, min_idx, m2_expr.ExprInt(0, 96))
+    return [m2_expr.ExprAssign(dst, result)], []
 
 def packsswb(ir, instr, dst, src):
     out = []
@@ -4898,6 +5034,12 @@ def packuswb(ir, instr, dst, src):
             out.append(_signed_to_unsigned_saturation(source[start:start + 16], 8))
     return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
+def packusdw(ir, instr, dst, src):
+    out = []
+    for source in [dst, src]:
+        for start in range(0, dst.size, 32):
+            out.append(_signed_to_unsigned_saturation(source[start:start + 32], 16))
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
 def _saturation_sub_unsigned(expr):
     assert expr.is_op("+") and len(expr.args) == 2 and expr.args[-1].is_op("-")
@@ -5533,6 +5675,7 @@ mnemo_func = {'mov': mov,
               "pmulhw": pmulhw,
               "pmulhd": pmulhd,
               "pmulhq": pmulhq,
+              "pmuldq": pmuldq,
               "pmuludq": pmuludq,
 
               # Mix
@@ -5633,6 +5776,9 @@ mnemo_func = {'mov': mov,
               "pshufd": pshufd,
               "pshuflw": pshuflw,
               "pshufhw": pshufhw,
+              "ptest": ptest,
+              "ptest": ptest,
+              "pclmulqdq": pclmulqdq,
 
               "psrlw": psrlw,
               "psrld": psrld,
@@ -5647,14 +5793,20 @@ mnemo_func = {'mov': mov,
 
               "palignr": palignr,
 
+              "psignb": psignb,
+              "psignw": psignw,
+              "psignd": psignd,
+
               "pmaxub": pmaxub,
               "pmaxuw": pmaxuw,
               "pmaxud": pmaxud,
+              "pmaxsd": pmaxsd,
               "pmaxsw": pmaxsw,
 
               "pminub": pminub,
               "pminuw": pminuw,
               "pminud": pminud,
+              "pminsd": pminsd,
 
               "pcmpeqb": pcmpeqb,
               "pcmpeqw": pcmpeqw,
@@ -5707,10 +5859,17 @@ mnemo_func = {'mov': mov,
               "sqrtss": sqrtss,
 
               "pmovmskb": pmovmskb,
+              "pmovsxwd": pmovsxwd,
+              "pmovsxwq": pmovsxwq,
+              "pmovsxbd": pmovsxbd,
+              "pmovsxdq": pmovsxdq,
+
+              "phminposuw": phminposuw,
 
               "packsswb": packsswb,
               "packssdw": packssdw,
               "packuswb": packuswb,
+              "packusdw": packusdw,
 
               "psubusb": psubusb,
               "psubusw": psubusw,
