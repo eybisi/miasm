@@ -4461,6 +4461,9 @@ addop("pmaxuw", [bs8(0x0f), bs8(0x38), bs8(0x3e), pref_66] +
 addop("pmaxud", [bs8(0x0f), bs8(0x38), bs8(0x3f), pref_66] +
       rmmod(xmm_reg, rm_arg_xmm))
 
+addop("pmaxsd", [bs8(0x0f), bs8(0x38), bs8(0x3d), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm))
+
 addop("pmaxsw", [bs8(0x0f), bs8(0xee), no_xmm_pref] +
       rmmod(mm_reg, rm_arg_mm_m64))
 addop("pmaxsw", [bs8(0x0f), bs8(0xee), pref_66] +
