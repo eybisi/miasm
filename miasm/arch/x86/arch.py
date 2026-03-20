@@ -4285,7 +4285,8 @@ addop("pshuflw", [bs8(0x0f), bs8(0x70), pref_f2] +
       rmmod(xmm_reg, rm_arg_xmm_m128) + [u08])
 addop("pshufhw", [bs8(0x0f), bs8(0x70), pref_f3] +
       rmmod(xmm_reg, rm_arg_xmm_m128) + [u08])
-
+addop("ptest", [bs8(0x0f), bs8(0x38), bs8(0x17), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m128))
 
 ### Convert
 ### SS = single precision

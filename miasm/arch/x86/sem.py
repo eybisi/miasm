@@ -5702,6 +5702,7 @@ mnemo_func = {'mov': mov,
               "pshufd": pshufd,
               "pshuflw": pshuflw,
               "pshufhw": pshufhw,
+              "ptest": ptest,
 
               "psrlw": psrlw,
               "psrld": psrld,
