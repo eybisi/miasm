@@ -4611,6 +4611,18 @@ addop("pmovmskb", [bs8(0x0f), bs8(0xd7), no_xmm_pref] +
 addop("pmovmskb", [bs8(0x0f), bs8(0xd7), pref_66] +
       rmmod(reg_modrm, rm_arg_xmm_reg))
 
+addop("pmovsxwd", [bs8(0x0f), bs8(0x38), bs8(0x23), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m64))
+
+addop("pmovsxwq", [bs8(0x0f), bs8(0x38), bs8(0x24), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m32))
+
+addop("pmovsxbd", [bs8(0x0f), bs8(0x38), bs8(0x21), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m32))
+
+addop("pmovsxdq", [bs8(0x0f), bs8(0x38), bs8(0x25), pref_66] +
+      rmmod(xmm_reg, rm_arg_xmm_m64))
+
 addop("shufps", [bs8(0x0f), bs8(0xc6), no_xmm_pref] +
       rmmod(xmm_reg, rm_arg_xmm) + [u08])
 addop("shufpd", [bs8(0x0f), bs8(0xc6), pref_66] +

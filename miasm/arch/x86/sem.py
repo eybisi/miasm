@@ -4619,7 +4619,6 @@ def punpckldq(ir, instr, dst, src):
 def punpcklqdq(ir, instr, dst, src):
     return punpck(ir, instr, dst, src, 64, 0)
 
-
 def pinsr(_, instr, dst, src, imm, size):
     e = []
 
@@ -4707,6 +4706,52 @@ def unpcklpd(_, instr, dst, src):
     e.append(m2_expr.ExprAssign(dst, src))
     return e, []
 
+def pmovsxwd(ir, instr, dst, src):
+    out = []
+    for i in range(4):
+        lane = src[16 * i:16 * (i + 1)]
+        out.append(lane.signExtend(32))
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def pmovsxwq(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+
+    out = []
+    for i in range(2):
+        w = src[16 * i:16 * (i + 1)]
+        out.append(w.signExtend(64))
+
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
+
+def pmovmskb(ir, instr, dst, src):
+    e = []
+    e.append(m2_expr.ExprAssign(dst, src.zeroExtend(dst.size)))
+    return e, []
+
+def pmovsxbd(ir, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+    out = []
+    for i in range(4):
+        b = src[8 * i: 8 * (i + 1)]
+        out.append(b.signExtend(32))
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
+
+def pmovsxdq(_, instr, dst, src):
+    e = []
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+    out = []
+    for i in range(2):
+        d = src[32 * i: 32 * (i + 1)]
+        out.append(d.signExtend(64))
+    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
+    return e, []
 
 def movlpd(_, instr, dst, src):
     e = []
@@ -5783,6 +5828,10 @@ mnemo_func = {'mov': mov,
               "sqrtss": sqrtss,
 
               "pmovmskb": pmovmskb,
+              "pmovsxwd": pmovsxwd,
+              "pmovsxwq": pmovsxwq,
+              "pmovsxbd": pmovsxbd,
+              "pmovsxdq": pmovsxdq,
 
               "phminposuw": phminposuw,
 
