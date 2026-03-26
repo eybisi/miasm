@@ -3988,10 +3988,12 @@ pavgw = vec_vertical_instr('avg', 16, _average)
 
 # SSE
 pminsw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=True))
+pminsb = vec_vertical_instr('min', 8, lambda x: _min_max(x, signed=True))
 pminub = vec_vertical_instr('min', 8, lambda x: _min_max(x, signed=False))
 pminuw = vec_vertical_instr('min', 16, lambda x: _min_max(x, signed=False))
 pminud = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=False))
 pminsd = vec_vertical_instr('min', 32, lambda x: _min_max(x, signed=True))
+pmaxsb = vec_vertical_instr('max', 8, lambda x: _min_max(x, signed=True))
 pmaxub = vec_vertical_instr('max', 8, lambda x: _min_max(x, signed=False))
 pmaxuw = vec_vertical_instr('max', 16, lambda x: _min_max(x, signed=False))
 pmaxud = vec_vertical_instr('max', 32, lambda x: _min_max(x, signed=False))
@@ -4339,6 +4341,27 @@ def cvttps2pi(_, instr, dst, src):
 
 def cvttss2si(_, instr, dst, src):
     return _cvtt_tpl(dst, src, [0], double=False), []
+
+def blendps(_, instr, dst, src, imm8):
+    control = int(imm8)
+    out = []
+
+    for i in range(4):
+        bit = (control >> i) & 1
+        lo = i * 32
+        hi = lo + 32
+        out.append(src[lo:hi] if bit else dst[lo:hi])
+
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def pblendw(_, instr, dst, src, imm8):
+    control = int(imm8)
+    out = []
+    for i in range(8):
+        lo = i * 16
+        hi = lo + 16
+        out.append(src[lo:hi] if ((control >> i) & 1) else dst[lo:hi])
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
 def movss(_, instr, dst, src):
     e = []
@@ -4753,16 +4776,24 @@ def pmovmskb(ir, instr, dst, src):
     e.append(m2_expr.ExprAssign(dst, src.zeroExtend(dst.size)))
     return e, []
 
-def pmovsxbd(ir, instr, dst, src):
-    e = []
+def pmovsxb(dst, src, count, out_size):
     if dst.size != 128:
         raise RuntimeError("Unsupported size %d" % dst.size)
+
     out = []
-    for i in range(4):
+    for i in range(count):
         b = src[8 * i: 8 * (i + 1)]
-        out.append(b.signExtend(32))
-    e.append(m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out)))
-    return e, []
+        out.append(b.signExtend(out_size))
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
+
+def pmovsxbw(ir, instr, dst, src):
+    return pmovsxb(dst, src, 8, 16)
+
+def pmovsxbd(ir, instr, dst, src):
+    return pmovsxb(dst, src, 4, 32)
+
+def pmovsxbq(ir, instr, dst, src):
+    return pmovsxb(dst, src, 2, 64)
 
 def pmovsxdq(_, instr, dst, src):
     e = []
@@ -5099,6 +5130,25 @@ paddsw = vec_vertical_instr('+', 16, _saturation_add_signed)
 
 
 # Others SSE operations
+
+def mpsadbw(ir, instr, dst, src, imm8):
+    if dst.size != 128:
+        raise RuntimeError("Unsupported size %d" % dst.size)
+
+    control = int(imm8)
+    src_base = (control & 0x3) * 32
+    dst_base = ((control >> 2) & 0x1) * 32
+
+    out = []
+    for i in range(8):
+        sad_terms = []
+        for j in range(4):
+            a = dst[dst_base + (i + j) * 8: dst_base + (i + j + 1) * 8].zeroExtend(16)
+            b = src[src_base + j * 8: src_base + (j + 1) * 8].zeroExtend(16)
+            sad_terms.append(_absolute(a - b))
+        out.append(m2_expr.ExprOp("+", *sad_terms))
+
+    return [m2_expr.ExprAssign(dst, m2_expr.ExprCompose(*out))], []
 
 def maskmovq(ir, instr, src, mask):
     loc_next = ir.get_next_loc_key(instr)
@@ -5630,6 +5680,8 @@ mnemo_func = {'mov': mov,
               "cvttsd2si": cvttsd2si,
               "cvttss2si": cvttss2si,
 
+              "blendps": blendps,
+              "pblendw": pblendw,
 
               "bndmov": bndmov,
 
@@ -5797,6 +5849,7 @@ mnemo_func = {'mov': mov,
               "psignw": psignw,
               "psignd": psignd,
 
+              "pmaxsb": pmaxsb,
               "pmaxub": pmaxub,
               "pmaxuw": pmaxuw,
               "pmaxud": pmaxud,
@@ -5806,6 +5859,7 @@ mnemo_func = {'mov': mov,
               "pminub": pminub,
               "pminuw": pminuw,
               "pminud": pminud,
+              "pminsb": pminsb,
               "pminsd": pminsd,
 
               "pcmpeqb": pcmpeqb,
@@ -5861,7 +5915,9 @@ mnemo_func = {'mov': mov,
               "pmovmskb": pmovmskb,
               "pmovsxwd": pmovsxwd,
               "pmovsxwq": pmovsxwq,
+              "pmovsxbw": pmovsxbw,
               "pmovsxbd": pmovsxbd,
+              "pmovsxbq": pmovsxbq,
               "pmovsxdq": pmovsxdq,
 
               "phminposuw": phminposuw,
@@ -5881,6 +5937,7 @@ mnemo_func = {'mov': mov,
               "paddsw": paddsw,
 
               "smsw": smsw,
+              "mpsadbw" : mpsadbw,
               "maskmovq": maskmovq,
               "maskmovdqu": maskmovq,
               "emms": emms,
